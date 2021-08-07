@@ -1,12 +1,14 @@
 use crate::*;
 
-pub fn bytes<Byte: Try<Output = u8>>(
+pub fn bytes<It, Byte>(
     input: &str,
     output: &str,
-    input_bytes: impl Iterator<Item = Byte>,
+    input_bytes: It,
     len: usize,
 ) -> Result
 where
+    It: Iterator<Item = Byte>,
+    Byte: Try<Output = u8>,
     Result: FromResidual<<Byte as Try>::Residual>,
 {
     let img = image::open(input)?;
@@ -28,7 +30,7 @@ where
         for bit in b.view_bits::<Lsb0>() {
             let to = &mut bytes[c];
             debug!("setting bytes[{}] to {}", c, bit);
-            to.view_bits_mut::<Msb0>().last_mut().unwrap().replace(*bit);
+            to.view_bits_mut::<Lsb0>().first_mut().unwrap().replace(*bit);
             // ^ msb0 here because we want the last bit to be least sig
             c += 1;
         }

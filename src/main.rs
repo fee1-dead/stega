@@ -32,6 +32,7 @@ enum Subcommand {
     EncodeText { text: String },
     DecodeText,
     EncodeFile { path: String },
+    DecodeFile,
 }
 
 fn main() {
@@ -66,7 +67,8 @@ fn main_inner() -> Result {
             let len = file.metadata()?.len() as usize;
             encode::bytes(&opts.input, &opts.output, BufReader::new(file).bytes(), len)?
         }
-        Subcommand::DecodeText => decode::text(&opts.input, &opts.output)?,
+        Subcommand::DecodeText => decode::text(&opts.input, &opts.output, decode::DecodeType::Text)?,
+        Subcommand::DecodeFile => decode::text(&opts.input, &opts.output, decode::DecodeType::File)?,
     }
     info!("OK - executed subcmd in {:?}", i.elapsed_now());
 
