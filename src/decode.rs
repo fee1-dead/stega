@@ -1,6 +1,3 @@
-use std::convert::TryInto;
-use image::GenericImageView;
-
 use crate::*;
 
 fn u32_from_lsb(bytes: &[u8; 32]) -> u32 {
@@ -11,8 +8,7 @@ fn u32_from_lsb(bytes: &[u8; 32]) -> u32 {
     u32::from_be_bytes(v.into_vec().try_into().unwrap())
 }
 
-
-pub fn text(input: String, output: String) -> Result {
+pub fn text(input: &str, output: &str) -> Result {
     let img = image::open(input)?;
     info!(color = ?img.color(), dim = ?img.dimensions());
     let bytes = img.into_bytes();
@@ -29,6 +25,6 @@ pub fn text(input: String, output: String) -> Result {
     let st = String::from_utf8(v.into_vec())?;
     info!(?st);
     std::fs::write(output, st)?;
-    
+
     Ok(())
 }

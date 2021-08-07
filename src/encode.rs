@@ -1,13 +1,19 @@
-use image::GenericImageView;
-
 use crate::*;
 
-pub fn text(input: String, output: String, txt: String) -> Result {
+pub fn bytes<Byte: Try<Output = u8>>(
+    input: &str,
+    output: &str,
+    input_bytes: impl Iterator<Item = Byte>,
+    len: usize,
+) -> Result
+where
+    Result: FromResidual<<Byte as Try>::Residual>,
+{
     let img = image::open(input)?;
     let color = img.color();
     let (x, y) = img.dimensions();
     let can_encode_bytes = x * y * (color.bytes_per_pixel() as u32) / 8;
-    let requested_bytes = txt.len() as u32;
+    let requested_bytes = len as u32;
     info!(?x, ?y, ?color, ?can_encode_bytes, ?requested_bytes);
     if requested_bytes + 4 > can_encode_bytes {
         Err("Too much data to fit in lsb")?;
@@ -18,7 +24,7 @@ pub fn text(input: String, output: String, txt: String) -> Result {
         *b &= 0b11111110; // clear all lsb;
     }
     let mut c = 0;
-    for b in requested_bytes.to_be_bytes().iter().copied().chain(txt.bytes()) {
+    let mut write_bit = |b: u8| {
         for bit in b.view_bits::<Lsb0>() {
             let to = &mut bytes[c];
             debug!("setting bytes[{}] to {}", c, bit);
@@ -26,8 +32,16 @@ pub fn text(input: String, output: String, txt: String) -> Result {
             // ^ msb0 here because we want the last bit to be least sig
             c += 1;
         }
+    };
+    requested_bytes
+        .to_be_bytes()
+        .iter()
+        .copied()
+        .for_each(&mut write_bit);
+    for b in input_bytes {
+        write_bit(b?);
     }
 
     image::save_buffer(output, &bytes, x, y, color)?;
     Ok(())
-} 
+}

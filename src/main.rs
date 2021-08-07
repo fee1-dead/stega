@@ -1,38 +1,38 @@
-#![feature(min_specialization)]
-use std::{error::Error, process::exit};
+#![feature(try_trait_v2, never_type)]
+use std::{
+    convert::Infallible,
+    io::BufReader,
+    ops::{ControlFlow, FromResidual},
+    time::{Duration, Instant},
+};
+pub use std::{convert::TryInto, error::Error, fs::File, io::Read, ops::Try, process::exit};
 
 use clap::Clap;
 
-pub use tracing::{debug, info};
 pub use bitvec::prelude::*;
+pub use image::GenericImageView;
+pub use tracing::{debug, info};
 use tracing_subscriber::FmtSubscriber;
 
-mod encode;
 mod decode;
+mod encode;
+mod utils;
+pub use utils::*;
 
 #[derive(Clap)]
 struct Opts {
     input: String,
     output: String,
     #[clap(subcommand)]
-    subcommand: Subcommand
+    subcommand: Subcommand,
 }
 
 #[derive(Clap)]
 enum Subcommand {
-    EncodeText {
-        text: String
-    },
+    EncodeText { text: String },
     DecodeText,
+    EncodeFile { path: String },
 }
-
-trait PrintError: Error {
-    fn print(&self) {
-        println!("{}", self)
-    }
-}
-
-type Result<T = (), E = Box<dyn Error>> = std::result::Result<T, E>;
 
 fn main() {
     match main_inner() {
@@ -45,14 +45,30 @@ fn main() {
 }
 
 fn main_inner() -> Result {
-    FmtSubscriber::builder().try_init().map_err::<Box<dyn Error>, _>(|b| b)?;
+    FmtSubscriber::builder()
+        .try_init()
+        .map_err::<Box<dyn Error>, _>(|b| b)?;
+
+    let mut i = Instant::now();
+
     let opts = Opts::parse();
+    info!("OK - parsed opts in {:?}", i.elapsed_now());
+
     match opts.subcommand {
-        Subcommand::EncodeText {
-            text
-        } => encode::text(opts.input, opts.output, text)?,
-        Subcommand::DecodeText => decode::text(opts.input, opts.output)?,
+        Subcommand::EncodeText { text } => encode::bytes(
+            &opts.input,
+            &opts.output,
+            text.bytes().map(Byte),
+            text.len(),
+        )?,
+        Subcommand::EncodeFile { path } => {
+            let file = File::open(path)?;
+            let len = file.metadata()?.len() as usize;
+            encode::bytes(&opts.input, &opts.output, BufReader::new(file).bytes(), len)?
+        }
+        Subcommand::DecodeText => decode::text(&opts.input, &opts.output)?,
     }
+    info!("OK - executed subcmd in {:?}", i.elapsed_now());
 
     Ok(())
 }
